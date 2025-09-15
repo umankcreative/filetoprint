@@ -1,0 +1,5 @@
+{
+  "name": "Digital Print Online System",
+  "description": "A comprehensive online printing system for customers, administrators, and print operators. Users can submit orders, manage materials, and track the entire printing process from file submission to completion.",
+  "requestFramePermissions": []
+}

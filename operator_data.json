@@ -1,0 +1,46 @@
+
+{
+  "queueStats": {
+    "filesToReview": 6,
+    "printQueue": 15,
+    "completedToday": 23
+  },
+  "tasks": [
+    {
+      "id": "ORD-1678999150",
+      "customer_name": "Jane Doe",
+      "status": "file_review",
+      "file_name": "Corporate_Brochure_v3.pdf",
+      "category": "document",
+      "submitted_at": "2023-03-16T18:55:10Z",
+      "priority": "high"
+    },
+    {
+      "id": "ORD-1678900123",
+      "customer_name": "Mike Smith",
+      "status": "approved",
+      "file_name": "Wedding_Invitation.ai",
+      "category": "document",
+      "submitted_at": "2023-03-15T16:10:00Z",
+      "priority": "normal"
+    },
+    {
+      "id": "ORD-1678912802",
+      "customer_name": "John Customer",
+      "status": "printing",
+      "file_name": "Grand_Opening_Banner.png",
+      "category": "banner",
+      "submitted_at": "2023-03-15T19:00:02Z",
+      "priority": "normal"
+    },
+    {
+      "id": "ORD-1678881122",
+      "customer_name": "Emily White",
+      "status": "printing",
+      "file_name": "Annual_Conference_Poster.pdf",
+      "category": "banner",
+      "submitted_at": "2023-03-15T10:00:00Z",
+      "priority": "low"
+    }
+  ]
+}

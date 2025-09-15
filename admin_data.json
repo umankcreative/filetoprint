@@ -1,0 +1,43 @@
+
+{
+  "dashboardStats": {
+    "newOrders": 8,
+    "pendingPayments": 5,
+    "inProgress": 12,
+    "dailyRevenue": 2450000
+  },
+  "recentOrders": [
+    {
+      "id": "ORD-1678999203",
+      "customer_id": 1,
+      "customer_name": "John Customer",
+      "status": "waiting_payment",
+      "total_price": 45000,
+      "created_at": "2023-03-16T19:00:03Z"
+    },
+    {
+      "id": "ORD-1678999150",
+      "customer_id": 4,
+      "customer_name": "Jane Doe",
+      "status": "file_review",
+      "total_price": 350000,
+      "created_at": "2023-03-16T18:55:10Z"
+    },
+    {
+      "id": "ORD-1678912802",
+      "customer_id": 1,
+      "customer_name": "John Customer",
+      "status": "printing",
+      "total_price": 125000,
+      "created_at": "2023-03-15T19:00:02Z"
+    },
+    {
+      "id": "ORD-1678900123",
+      "customer_id": 5,
+      "customer_name": "Mike Smith",
+      "status": "approved",
+      "total_price": 88000,
+      "created_at": "2023-03-15T16:10:00Z"
+    }
+  ]
+}
