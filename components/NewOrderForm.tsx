@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Upload, FileText, DollarSign } from 'lucide-react';
+import { Upload, FileText, DollarSign, Link, Cloud, Share2 } from 'lucide-react';
 import { Material, Category, FinishingOption, Order, OrderStatus } from '../types';
 
 interface NewOrderFormProps {
@@ -18,8 +18,10 @@ const NewOrderForm: React.FC<NewOrderFormProps> = ({
   onSubmit,
 }) => {
   // Form State
+  const [submissionType, setSubmissionType] = useState<'upload' | 'link'>('upload');
   const [category, setCategory] = useState<string>(categories[0]?.name || '');
   const [file, setFile] = useState<File | null>(null);
+  const [fileUrl, setFileUrl] = useState('');
   const [materialId, setMaterialId] = useState<number | ''>('');
   const [copies, setCopies] = useState(1);
   const [printingType, setPrintingType] = useState<'black_white' | 'color'>('black_white');
@@ -104,8 +106,12 @@ const NewOrderForm: React.FC<NewOrderFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !materialId) {
-      alert('Please fill all required fields: File and Material.');
+    if ((submissionType === 'upload' && !file) || (submissionType === 'link' && !fileUrl)) {
+      alert('Please provide a file or a valid link.');
+      return;
+    }
+     if (!materialId) {
+      alert('Please select a material.');
       return;
     }
     
@@ -115,8 +121,9 @@ const NewOrderForm: React.FC<NewOrderFormProps> = ({
         status: OrderStatus.WAITING_PAYMENT,
         total_price: totalPrice,
         created_at: new Date().toISOString(),
-        file: file,
-        file_name: file.name,
+        file: submissionType === 'upload' ? file! : undefined,
+        file_url: submissionType === 'link' ? fileUrl : undefined,
+        file_name: submissionType === 'upload' ? file!.name : `File from URL`,
         category: category,
         material_id: materialId,
         copies: category === 'banner' ? 1 : copies,
@@ -148,23 +155,45 @@ const NewOrderForm: React.FC<NewOrderFormProps> = ({
                 </select>
             </div>
              <div>
-                <label className={labelStyles}>Upload File</label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-slate-600 border-dashed rounded-md">
-                    <div className="space-y-1 text-center">
-                        <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                        <div className="flex text-sm text-gray-600 dark:text-slate-400">
-                            <label htmlFor="file-upload" className="relative cursor-pointer bg-white dark:bg-slate-800 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
-                                <span>Pilih file untuk diupload</span>
-                                <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={e => setFile(e.target.files ? e.target.files[0] : null)} required />
-                            </label>
-                        </div>
-                        {file ? (
-                           <p className="text-sm text-gray-500 dark:text-slate-300 flex items-center justify-center"><FileText size={14} className="mr-2" /> {file.name}</p>
-                        ) : (
-                           <p className="text-xs text-gray-500 dark:text-slate-400">PDF, JPG, PNG, DOCX, dll.</p>
-                        )}
-                    </div>
+                <label className={labelStyles}>Sumber File</label>
+                <div className="bg-slate-100 dark:bg-slate-700 p-1 rounded-lg flex space-x-1">
+                    <button type="button" onClick={() => setSubmissionType('upload')} className={`w-full py-2 text-sm font-medium rounded-md ${submissionType === 'upload' ? 'bg-white dark:bg-slate-800 shadow text-blue-600' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>Upload File</button>
+                    <button type="button" onClick={() => setSubmissionType('link')} className={`w-full py-2 text-sm font-medium rounded-md ${submissionType === 'link' ? 'bg-white dark:bg-slate-800 shadow text-blue-600' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600'}`}>Submit Link</button>
                 </div>
+                {submissionType === 'upload' ? (
+                    <div className="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-slate-600 border-dashed rounded-md">
+                        <div className="space-y-1 text-center">
+                            <Upload className="mx-auto h-12 w-12 text-gray-400" />
+                            <div className="flex text-sm text-gray-600 dark:text-slate-400">
+                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white dark:bg-slate-800 rounded-md font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                    <span>Pilih file untuk diupload</span>
+                                    <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={e => setFile(e.target.files ? e.target.files[0] : null)} />
+                                </label>
+                            </div>
+                            {file ? (
+                               <p className="text-sm text-gray-500 dark:text-slate-300 flex items-center justify-center"><FileText size={14} className="mr-2" /> {file.name}</p>
+                            ) : (
+                               <p className="text-xs text-gray-500 dark:text-slate-400">PDF, JPG, PNG, DOCX, dll.</p>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="mt-2">
+                        <div className="relative">
+                           <Link className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                            <input
+                                type="url"
+                                value={fileUrl}
+                                onChange={e => setFileUrl(e.target.value)}
+                                placeholder="https://www.dropbox.com/s/..."
+                                className={`${inputStyles} pl-10`}
+                            />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-slate-400 mt-2 flex items-center gap-2">
+                           <Cloud size={14}/> Pastikan link dapat diakses publik. Contoh: Google Drive, Dropbox, dll.
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
 
@@ -276,8 +305,8 @@ const NewOrderForm: React.FC<NewOrderFormProps> = ({
                         <DollarSign size={20} className="mr-2" /> Rp {totalPrice.toLocaleString()}
                     </p>
                 </div>
-                <button type="submit" className="w-full mt-6 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition transform hover:scale-105 shadow-md">
-                    Buat Pesanan
+                <button type="submit" className="w-full mt-6 bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition transform hover:scale-105 shadow-md flex items-center justify-center gap-2">
+                   <Share2 size={18}/> Buat Pesanan
                 </button>
             </div>
         </div>

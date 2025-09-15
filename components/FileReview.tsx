@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, X, AlertCircle, ArrowLeft, Download, Eye, FileText } from 'lucide-react';
+import { Check, X, AlertCircle, ArrowLeft, Download, Eye, FileText, Link as LinkIcon } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import StatusBadge from './StatusBadge';
 import { MOCK_MATERIALS, MOCK_FINISHING_OPTIONS } from '../constants';
@@ -74,14 +74,23 @@ const FileReview: React.FC<FileReviewProps> = ({ order, onUpdateStatus, onBack }
                         <img src={previewUrl} alt="File preview" className="max-h-full max-w-full object-contain" />
                     ) : (
                         <div className="text-center text-gray-500 dark:text-slate-400">
-                            <FileText size={48} className="mx-auto" />
-                            <p className="mt-2 text-sm">Preview tidak tersedia untuk tipe file ini</p>
+                            {order.file_url ? <LinkIcon size={48} className="mx-auto" /> : <FileText size={48} className="mx-auto" />}
+                            <p className="mt-2 text-sm">{order.file_url ? "File dari link eksternal." : "Preview tidak tersedia."}</p>
                         </div>
                     )}
                 </div>
                 <div className="mt-4 flex items-center justify-between">
                     <span className="font-medium text-gray-800 dark:text-slate-200 truncate" title={order.file_name}>{order.file_name}</span>
-                    {previewUrl && (
+                    {order.file_url ? (
+                        <a 
+                            href={order.file_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition inline-flex items-center gap-1 text-sm"
+                        >
+                            <LinkIcon size={16}/> Buka Tautan
+                        </a>
+                    ) : previewUrl && (
                         <a 
                             href={previewUrl} 
                             download={order.file_name}

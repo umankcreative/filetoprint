@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, User, FileText, Settings, Hash, Calendar, DollarSign, Edit, Save, X, AlertCircle, CheckCircle, Loader, Package } from 'lucide-react';
+import { ArrowLeft, User, FileText, Settings, Hash, Calendar, DollarSign, Edit, Save, X, AlertCircle, CheckCircle, Loader, Package, Link } from 'lucide-react';
 import { Order, User as UserType, Material, FinishingOption, OrderStatus } from '../types';
 import StatusBadge from './StatusBadge';
 
@@ -113,9 +113,17 @@ const OrderDetails: React.FC<OrderDetailsProps> = ({ order, currentUser, users, 
           <div className="p-4 border dark:border-slate-700 rounded-lg">
             <h3 className="font-semibold text-lg text-gray-700 dark:text-slate-200 mb-3 flex items-center"><Settings className="mr-2 text-blue-500 dark:text-blue-400"/>Spesifikasi Pesanan</h3>
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-slate-300">
-              {/* FIX: Ensure order.category is treated as a string before calling .replace() to prevent type errors. */}
               <div><strong>Kategori:</strong> <span className="capitalize">{String(order.category).replace('_', ' ')}</span></div>
-              <div><strong>File:</strong> {order.file_name}</div>
+              <div>
+                <strong>File:</strong> 
+                {order.file_url ? (
+                  <a href={order.file_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline flex items-center gap-1">
+                     <Link size={14}/> Tautan Eksternal
+                  </a>
+                ) : (
+                  ` ${order.file_name}`
+                )}
+              </div>
               <div><strong>Bahan:</strong> {material?.name || 'N/A'}</div>
               <div><strong>Jenis Cetak:</strong> {order.printing_type === 'color' ? 'Berwarna' : 'Hitam Putih'}</div>
               { (order.category === 'document' || order.category === 'business_card') && <>

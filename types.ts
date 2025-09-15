@@ -51,7 +51,8 @@ export interface Order {
   status: OrderStatus;
   total_price: number;
   created_at: string;
-  file: File;
+  file?: File;
+  file_url?: string;
   file_name: string;
   category: string;
   material_id: number;
