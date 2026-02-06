@@ -13,7 +13,8 @@
     "react-dom": "^19.1.1",
     "lucide-react": "^0.544.0",
     "drizzle-orm": "^0.44.5",
-    "@google/genai": "^1.19.0"
+    "@google/genai": "^1.19.0",
+    "@supabase/supabase-js": "^2.39.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, UserType, Order, Material, Category, FinishingOption, OrderStatus, Notification, AdminData, OperatorData, OperatorTask, AdminRecentOrder, PaymentMethod } from './types';
-import { MOCK_USERS, MOCK_CATEGORIES, MOCK_MATERIALS, MOCK_FINISHING_OPTIONS, MOCK_PAYMENT_METHODS } from './constants';
+import { api } from './lib/api';
 
-// Component Imports
 import LoginForm from './components/LoginForm';
 import CustomerDashboard from './components/CustomerDashboard';
 import AdminDashboard from './components/AdminDashboard';
@@ -22,29 +21,26 @@ import SideNav from './components/SideNav';
 import Header from './components/Header';
 
 const App: React.FC = () => {
-  // State
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState('login'); // login, dashboard, new_order, my_orders, etc.
-  
+  const [currentView, setCurrentView] = useState('login');
+
   const [orders, setOrders] = useState<Order[]>([]);
-  const [materials, setMaterials] = useState<Material[]>(MOCK_MATERIALS);
-  const [categories] = useState<Category[]>(MOCK_CATEGORIES);
-  const [finishingOptions] = useState<FinishingOption[]>(MOCK_FINISHING_OPTIONS);
-  const [users] = useState<User[]>(MOCK_USERS);
-  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>(MOCK_PAYMENT_METHODS);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [finishingOptions, setFinishingOptions] = useState<FinishingOption[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  
-  // Admin & Operator specific data
+
   const [adminData, setAdminData] = useState<AdminData | null>(null);
   const [operatorData, setOperatorData] = useState<OperatorData | null>(null);
   const [selectedTask, setSelectedTask] = useState<Order | null>(null);
-  
-  // Dark Mode State
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
-  // Dark Mode Effect
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     const systemPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -66,8 +62,115 @@ const App: React.FC = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const [usersData, categoriesData, materialsData, finishingData, paymentsData] = await Promise.all([
+          api.getUsers(),
+          api.getCategories(),
+          api.getMaterials(),
+          api.getFinishingOptions(),
+          api.getPaymentMethods(),
+        ]);
 
-  // Handlers
+        setUsers(usersData);
+        setCategories(categoriesData);
+        setMaterials(materialsData);
+        setFinishingOptions(finishingData);
+        setPaymentMethods(paymentsData);
+      } catch (error) {
+        console.error('Failed to load initial data:', error);
+        addNotification('Failed to load application data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadInitialData();
+  }, []);
+
+  const loadOrders = async () => {
+    try {
+      const ordersData = await api.getOrders();
+      setOrders(ordersData);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+      addNotification('Failed to load orders', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      loadOrders();
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      if (!currentUser) return;
+
+      setAdminData(null);
+      setOperatorData(null);
+
+      try {
+        if (currentUser.user_type === UserType.ADMIN) {
+          const stats = await api.getDashboardStats();
+          const allOrders = await api.getOrders();
+          const recentOrders: AdminRecentOrder[] = allOrders.slice(0, 5).map(o => ({
+            id: o.id,
+            customer_id: o.customer_id,
+            customer_name: users.find(u => u.id === o.customer_id)?.name || 'Unknown',
+            status: o.status,
+            total_price: o.total_price,
+            created_at: o.created_at,
+          }));
+
+          setAdminData({
+            dashboardStats: stats,
+            recentOrders,
+          });
+        }
+
+        if (currentUser.user_type === UserType.OPERATOR) {
+          const stats = await api.getOperatorStats();
+          const reviewOrders = await api.getOrdersForReview();
+          const printingOrders = orders.filter(o => ['APPROVED', 'PRINTING'].includes(o.status));
+
+          const tasks: OperatorTask[] = [
+            ...reviewOrders.map(o => ({
+              id: o.id,
+              customer_name: users.find(u => u.id === o.customer_id)?.name || 'Unknown',
+              status: o.status,
+              file_name: o.file_name,
+              category: o.category,
+              submitted_at: o.created_at,
+              priority: 'high' as const,
+            })),
+            ...printingOrders.slice(0, 3).map(o => ({
+              id: o.id,
+              customer_name: users.find(u => u.id === o.customer_id)?.name || 'Unknown',
+              status: o.status,
+              file_name: o.file_name,
+              category: o.category,
+              submitted_at: o.created_at,
+              priority: 'normal' as const,
+            })),
+          ];
+
+          setOperatorData({
+            queueStats: stats,
+            tasks,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard data:', error);
+        addNotification('Failed to load dashboard data', 'error');
+      }
+    };
+
+    loadDashboardData();
+  }, [currentUser, orders, users]);
+
   const addNotification = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const newNotif = { id: Date.now(), message, type };
     setNotifications(prev => [...prev, newNotif]);
@@ -75,8 +178,8 @@ const App: React.FC = () => {
       setNotifications(prev => prev.filter(n => n.id !== newNotif.id));
     }, 5000);
   };
-  
-  const handleLogin = (userType: UserType) => {
+
+  const handleLogin = async (userType: UserType) => {
     const user = users.find(u => u.user_type === userType);
     if (user) {
       setCurrentUser(user);
@@ -89,59 +192,67 @@ const App: React.FC = () => {
     addNotification(`Goodbye, ${currentUser?.name}!`);
     setCurrentUser(null);
     setCurrentView('login');
+    setOrders([]);
   };
 
-  const handleNewOrder = (order: Order) => {
-    setOrders(prev => [order, ...prev]);
-    setCurrentView('my_orders');
-    addNotification('Your order has been placed successfully!', 'success');
-  };
-
-  const handleUpdateStatus = (orderId: string, status: OrderStatus, reason?: string) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status, rejection_reason: reason !== undefined ? reason : o.rejection_reason } : o));
-    if (selectedOrder?.id === orderId) {
-        setSelectedOrder(prev => prev ? { ...prev, status, rejection_reason: reason !== undefined ? reason : prev.rejection_reason } : null);
+  const handleNewOrder = async (order: Order) => {
+    try {
+      await api.createOrder(order);
+      await loadOrders();
+      setCurrentView('my_orders');
+      addNotification('Your order has been placed successfully!', 'success');
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      addNotification('Failed to create order', 'error');
     }
-    addNotification(`Order ${orderId} status updated to ${status.replace(/_/g, ' ')}.`, 'info');
   };
 
-  const handleReuploadFile = (orderId: string, newFile: File) => {
-    setOrders(prev => prev.map(o => {
-        if (o.id === orderId) {
-            return {
-                ...o,
-                file: newFile,
-                file_name: newFile.name,
-                status: OrderStatus.FILE_REVIEW,
-                rejection_reason: undefined // Clear the reason
-            };
+  const handleUpdateStatus = async (orderId: string, status: OrderStatus, reason?: string) => {
+    try {
+      await api.updateOrderStatus(orderId, status, reason);
+      await loadOrders();
+
+      if (selectedOrder?.id === orderId) {
+        const updatedOrder = orders.find(o => o.id === orderId);
+        if (updatedOrder) {
+          setSelectedOrder({ ...updatedOrder, status, rejection_reason: reason });
         }
-        return o;
-    }));
-    addNotification(`File baru untuk pesanan ${orderId} telah diupload dan menunggu review.`, 'success');
+      }
+
+      addNotification(`Order ${orderId} status updated to ${status.replace(/_/g, ' ')}.`, 'info');
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      addNotification('Failed to update order status', 'error');
+    }
   };
 
-  const handleUpdateFileUrl = (orderId: string, newUrl: string) => {
-    setOrders(prev => prev.map(o => {
-        if (o.id === orderId) {
-            return {
-                ...o,
-                file_url: newUrl,
-                file_name: `File from URL`,
-                status: OrderStatus.FILE_REVIEW,
-                rejection_reason: undefined // Clear the reason
-            };
-        }
-        return o;
-    }));
-    addNotification(`Link file untuk pesanan ${orderId} telah diperbarui dan menunggu review.`, 'success');
+  const handleReuploadFile = async (orderId: string, newFile: File) => {
+    try {
+      await api.updateOrderFile(orderId, newFile.name);
+      await loadOrders();
+      addNotification(`File baru untuk pesanan ${orderId} telah diupload dan menunggu review.`, 'success');
+    } catch (error) {
+      console.error('Failed to reupload file:', error);
+      addNotification('Failed to reupload file', 'error');
+    }
+  };
+
+  const handleUpdateFileUrl = async (orderId: string, newUrl: string) => {
+    try {
+      await api.updateOrderFile(orderId, 'File from URL', newUrl);
+      await loadOrders();
+      addNotification(`Link file untuk pesanan ${orderId} telah diperbarui dan menunggu review.`, 'success');
+    } catch (error) {
+      console.error('Failed to update file URL:', error);
+      addNotification('Failed to update file URL', 'error');
+    }
   };
 
   const handleViewDetails = (order: Order) => {
     setSelectedOrder(order);
     setCurrentView('order_details');
   };
-  
+
   const handleReviewTask = (task: OperatorTask) => {
     const orderToReview = orders.find(o => o.id === task.id);
     if (orderToReview) {
@@ -156,115 +267,106 @@ const App: React.FC = () => {
     setSelectedTask(order);
     setCurrentView('file_review');
   };
-  
-  const handleAddMaterial = (material: Omit<Material, 'id'>) => {
-      const newMaterial = { ...material, id: Date.now() };
-      setMaterials(prev => [...prev, newMaterial]);
+
+  const handleAddMaterial = async (material: Omit<Material, 'id'>) => {
+    try {
+      await api.addMaterial(material);
+      const materialsData = await api.getMaterials();
+      setMaterials(materialsData);
       addNotification('New material added successfully!', 'success');
+    } catch (error) {
+      console.error('Failed to add material:', error);
+      addNotification('Failed to add material', 'error');
+    }
   };
 
-  const handleUpdateMaterial = (material: Material) => {
-      setMaterials(prev => prev.map(m => m.id === material.id ? material : m));
+  const handleUpdateMaterial = async (material: Material) => {
+    try {
+      await api.updateMaterial(material);
+      const materialsData = await api.getMaterials();
+      setMaterials(materialsData);
       addNotification('Material updated successfully!', 'success');
+    } catch (error) {
+      console.error('Failed to update material:', error);
+      addNotification('Failed to update material', 'error');
+    }
   };
 
-  const handleDeleteMaterial = (materialId: number) => {
-      setMaterials(prev => prev.filter(m => m.id !== materialId));
+  const handleDeleteMaterial = async (materialId: number) => {
+    try {
+      await api.deleteMaterial(materialId);
+      const materialsData = await api.getMaterials();
+      setMaterials(materialsData);
       addNotification('Material deleted successfully!', 'info');
+    } catch (error) {
+      console.error('Failed to delete material:', error);
+      addNotification('Failed to delete material', 'error');
+    }
   };
-  
-  const handleAddPaymentMethod = (method: Omit<PaymentMethod, 'id'>) => {
-      const newMethod = { ...method, id: Date.now() };
-      setPaymentMethods(prev => [...prev, newMethod]);
+
+  const handleAddPaymentMethod = async (method: Omit<PaymentMethod, 'id'>) => {
+    try {
+      await api.addPaymentMethod(method);
+      const paymentsData = await api.getPaymentMethods();
+      setPaymentMethods(paymentsData);
       addNotification('New payment method added!', 'success');
+    } catch (error) {
+      console.error('Failed to add payment method:', error);
+      addNotification('Failed to add payment method', 'error');
+    }
   };
-  
-  const handleUpdatePaymentMethod = (method: PaymentMethod) => {
-      setPaymentMethods(prev => prev.map(m => m.id === method.id ? method : m));
+
+  const handleUpdatePaymentMethod = async (method: PaymentMethod) => {
+    try {
+      await api.updatePaymentMethod(method);
+      const paymentsData = await api.getPaymentMethods();
+      setPaymentMethods(paymentsData);
       addNotification('Payment method updated!', 'success');
+    } catch (error) {
+      console.error('Failed to update payment method:', error);
+      addNotification('Failed to update payment method', 'error');
+    }
   };
-  
-  const handleDeletePaymentMethod = (methodId: number) => {
-      setPaymentMethods(prev => prev.filter(m => m.id !== methodId));
+
+  const handleDeletePaymentMethod = async (methodId: number) => {
+    try {
+      await api.deletePaymentMethod(methodId);
+      const paymentsData = await api.getPaymentMethods();
+      setPaymentMethods(paymentsData);
       addNotification('Payment method deleted!', 'info');
+    } catch (error) {
+      console.error('Failed to delete payment method:', error);
+      addNotification('Failed to delete payment method', 'error');
+    }
   };
 
-  // Load base orders on initial app load to simulate a database
-    useEffect(() => {
-        fetch('/customer_data.json')
-            .then(res => res.json())
-            .then(data => {
-                const allOrders: Order[] = data.map((o: any) => ({
-                    ...o,
-                    status: o.status.toUpperCase() as OrderStatus,
-                    file: new File([""], o.file_name, { type: "text/plain" }),
-                    file_url: o.file_url || undefined,
-                    printing_sides: o.printing_sides || 'single_sided',
-                }));
-                setOrders(allOrders);
-            })
-            .catch(err => {
-                console.error("Failed to load initial order data", err);
-                addNotification("Could not load order data.", "error");
-            });
-    }, []);
+  const pageTitles: { [key: string]: string } = {
+    dashboard: 'Dashboard',
+    new_order: 'Buat Pesanan Baru',
+    my_orders: 'Pesanan Saya',
+    order_details: `Detail Pesanan #${selectedOrder?.id || ''}`,
+    manage_orders: 'Kelola Pesanan',
+    manage_materials: 'Kelola Bahan',
+    verify_payments: 'Verifikasi Pembayaran',
+    payment_settings: 'Pengaturan Pembayaran',
+    file_review_queue: 'Antrian Review File',
+    file_review: `Review File #${selectedTask?.id || ''}`,
+    profile: 'Profil Saya',
+  };
 
-    // Fetch dashboard-specific data when user changes
-    useEffect(() => {
-        // Clear specific data on user change
-        setAdminData(null);
-        setOperatorData(null);
+  const getPageTitle = () => pageTitles[currentView] || 'Digital Print';
 
-        if (currentUser?.user_type === UserType.ADMIN) {
-          fetch('/admin_data.json')
-            .then(res => res.json())
-            .then(data => {
-                const recentOrders: AdminRecentOrder[] = data.recentOrders.map((o: any) => ({
-                    ...o,
-                    status: o.status.toUpperCase() as OrderStatus,
-                }));
-                setAdminData({ ...data, recentOrders });
-            })
-            .catch(err => {
-                console.error("Failed to load admin dashboard data", err)
-                addNotification("Could not load admin dashboard.", "error");
-            });
-        }
-        
-        if (currentUser?.user_type === UserType.OPERATOR) {
-          fetch('/operator_data.json')
-            .then(res => res.json())
-            .then(data => {
-                 const tasks: OperatorTask[] = data.tasks.map((t: any) => ({
-                    ...t,
-                    status: t.status.toUpperCase() as OrderStatus,
-                }));
-                setOperatorData({ ...data, tasks });
-            })
-            .catch(err => {
-                console.error("Failed to load operator dashboard data", err)
-                addNotification("Could not load operator dashboard.", "error");
-            });
-        }
-    }, [currentUser]);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-100 dark:bg-slate-900">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-slate-400">Loading application...</p>
+        </div>
+      </div>
+    );
+  }
 
-    const pageTitles: { [key: string]: string } = {
-        dashboard: 'Dashboard',
-        new_order: 'Buat Pesanan Baru',
-        my_orders: 'Pesanan Saya',
-        order_details: `Detail Pesanan #${selectedOrder?.id || ''}`,
-        manage_orders: 'Kelola Pesanan',
-        manage_materials: 'Kelola Bahan',
-        verify_payments: 'Verifikasi Pembayaran',
-        payment_settings: 'Pengaturan Pembayaran',
-        file_review_queue: 'Antrian Review File',
-        file_review: `Review File #${selectedTask?.id || ''}`,
-        profile: 'Profil Saya',
-    };
-
-    const getPageTitle = () => pageTitles[currentView] || 'Digital Print';
-
-  // Render logic
   if (!currentUser) {
     return <LoginForm onLogin={handleLogin} />;
   }
@@ -280,13 +382,11 @@ const App: React.FC = () => {
         if (currentUser.user_type === 'operator') return <OperatorDashboard operatorData={operatorData} onViewTask={handleReviewTask} onViewFileReviewQueue={() => setCurrentView('file_review_queue')}/>;
         return null;
 
-      // Customer Views
       case 'new_order':
         return <NewOrderForm materials={materials} categories={categories} finishingOptions={finishingOptions} customerId={currentUser.id} onSubmit={handleNewOrder} />;
       case 'my_orders':
         return <MyOrders orders={customerOrders} paymentMethods={paymentMethods} onUpdateStatus={handleUpdateStatus} onViewDetails={handleViewDetails} onReuploadFile={handleReuploadFile} onUpdateFileUrl={handleUpdateFileUrl} />;
-      
-      // Admin Views
+
       case 'manage_orders':
         return <ManageOrders orders={orders} users={users} onViewDetails={handleViewDetails} />;
       case 'manage_materials':
@@ -295,8 +395,7 @@ const App: React.FC = () => {
         return <VerifyPayments orders={orders} users={users} onUpdateStatus={handleUpdateStatus} />;
       case 'payment_settings':
         return <PaymentSettings paymentMethods={paymentMethods} onAdd={handleAddPaymentMethod} onUpdate={handleUpdatePaymentMethod} onDelete={handleDeletePaymentMethod} />;
-      
-      // Operator Views
+
       case 'file_review_queue':
         return <FileReviewQueue ordersToReview={ordersToReview} users={users} onReviewOrder={handleReviewOrder} onBack={() => setCurrentView('dashboard')} />;
       case 'file_review':
@@ -306,8 +405,7 @@ const App: React.FC = () => {
         setCurrentView('dashboard');
         addNotification('Selected task is not valid anymore.', 'error');
         return null;
-        
-      // Shared Views
+
       case 'order_details':
         if (selectedOrder) {
           const backView = currentUser.user_type === 'customer' ? 'my_orders' : 'manage_orders'
@@ -318,7 +416,7 @@ const App: React.FC = () => {
         return null;
       case 'profile':
         return <Profile user={currentUser} onLogout={handleLogout} onBack={() => setCurrentView('dashboard')} />;
-      
+
       default:
         return <div>Page not found</div>;
     }
@@ -326,23 +424,22 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-900 font-sans">
-        <Notifications notifications={notifications} onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} />
-        <SideNav currentUser={currentUser} currentView={currentView} setCurrentView={setCurrentView} />
-        
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-y-auto">
-            <Header
-                pageTitle={getPageTitle()}
-                currentUser={currentUser}
-                theme={theme}
-                toggleTheme={toggleTheme}
-                setCurrentView={setCurrentView}
-                handleLogout={handleLogout}
-            />
-            <main className="flex-1 p-8">
-                {renderContent()}
-            </main>
-        </div>
+      <Notifications notifications={notifications} onDismiss={(id) => setNotifications(prev => prev.filter(n => n.id !== id))} />
+      <SideNav currentUser={currentUser} currentView={currentView} setCurrentView={setCurrentView} />
+
+      <div className="flex-1 flex flex-col overflow-y-auto">
+        <Header
+          pageTitle={getPageTitle()}
+          currentUser={currentUser}
+          theme={theme}
+          toggleTheme={toggleTheme}
+          setCurrentView={setCurrentView}
+          handleLogout={handleLogout}
+        />
+        <main className="flex-1 p-8">
+          {renderContent()}
+        </main>
+      </div>
     </div>
   );
 };
